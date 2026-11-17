@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -33,7 +34,7 @@ def scrape_store_content(base_url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        main_text = soup.get_text(separator=' ', strip=True)[:5000]
+        main_text = soup.get_text(separator=' ', strip=True)[:4500]
         
         policy_keywords = ['استرجاع', 'استبدال', 'خصوصية', 'شروط', 'سياسة', 'شكاوى', 'return', 'refund', 'privacy', 'terms']
         policy_texts = ""
@@ -50,7 +51,7 @@ def scrape_store_content(base_url):
                     try:
                         sub_res = requests.get(full_url, headers=headers, timeout=8)
                         sub_soup = BeautifulSoup(sub_res.text, 'html.parser')
-                        sub_text = sub_soup.get_text(separator=' ', strip=True)[:3000]
+                        sub_text = sub_soup.get_text(separator=' ', strip=True)[:2500]
                         policy_texts += f"\n--- محتوى صفحة ({link_text}) ---\n{sub_text}\n"
                     except:
                         continue
@@ -61,7 +62,7 @@ def scrape_store_content(base_url):
     except Exception as e:
         return f"ERROR: {str(e)}"
 
-def stream_compliance_analysis(store_data, api_key):
+def analyze_with_retry(store_data, api_key, status_box):
     clean_key = api_key.strip()
     client = genai.Client(api_key=clean_key)
     
@@ -86,29 +87,29 @@ def stream_compliance_analysis(store_data, api_key):
     
     prompt = f"افحص بيانات المتجر التالي وأصدر التقرير القانوني:\n\n{store_data}"
     
-    # تجربة النماذج بالترتيب لضمان السرعة وعدم التوقف بسبب الازدحام
-    models_to_try = ["gemini-3.8-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro"]
-    
-    last_error = ""
-    for model_name in models_to_try:
+    max_retries = 4
+    for attempt in range(1, max_retries + 1):
         try:
-            response = client.models.generate_content_stream(
-                model=model_name,
+            status_box.info(f"⏳ جاري التحليل القانوني عبر الذكاء الاصطناعي (المحاولة {attempt} من {max_retries})...")
+            response = client.models.generate_content(
+                model="gemini-3.8-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     temperature=0.2,
                 )
             )
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-            return
+            return response.text
         except Exception as e:
-            last_error = str(e)
-            continue
+            err_msg = str(e)
+            if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg:
+                if attempt < max_retries:
+                    status_box.warning(f"السيرفر مزدحم حالياً، جاري إعادة المحاولة تلقائياً خلال 4 ثوانٍ... ({attempt}/{max_retries})")
+                    time.sleep(4)
+                    continue
+            return f"API_ERROR: {err_msg}"
             
-    yield f"\n\n⚠️ تعذر الاتصال حالياً بجميع النماذج بسبب الضغط. التفاصيل: {last_error}"
+    return "API_ERROR: السيرفر مزدحم حالياً بعد عدة محاولات، يرجى المحاولة بعد دقيقة."
 
 st.title("🛡️ منصة ثقة AI - فاحص امتثال المتاجر الإلكترونية")
 st.markdown("##### افحص متجرك الإلكتروني وتأكد من مطابقته لاشتراطات وزارة التجارة السعودية والمركز السعودي للأعمال في ثوانٍ.")
@@ -126,19 +127,25 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
     elif not store_url or not store_url.startswith("http"):
         st.error("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ http:// أو https://")
     else:
-        with st.spinner("جاري قراءة صفحات المتجر وفحص التذييل (Footer)..."):
-            scraped_data = scrape_store_content(store_url.strip())
+        status_placeholder = st.empty()
+        status_placeholder.info("🌐 جاري قراءة صفحات المتجر وفحص التذييل (Footer)...")
+        scraped_data = scrape_store_content(store_url.strip())
             
         if scraped_data.startswith("ERROR:"):
-            st.error(f"تعذر الوصول إلى المتجر. التفاصيل: {scraped_data}")
+            status_placeholder.error(f"تعذر الوصول إلى المتجر. التفاصيل: {scraped_data}")
         else:
-            st.success("✅ تم سحب بيانات المتجر! التقرير القانوني يُكتب الآن:")
-            st.markdown("---")
-            full_report = st.write_stream(stream_compliance_analysis(scraped_data, api_key))
+            report = analyze_with_retry(scraped_data, api_key, status_placeholder)
             
-            st.download_button(
-                label="📥 تحميل التقرير والسياسات الجاهزة (ملف نصي)",
-                data=full_report,
-                file_name="تقرير_امتثال_المتجر.md",
-                mime="text/markdown"
-            )
+            if report.startswith("API_ERROR:"):
+                status_placeholder.error(f"⚠️ {report}")
+            else:
+                status_placeholder.success("✅ اكتمل الفحص القانوني بنجاح!")
+                st.markdown("---")
+                st.markdown(report)
+                
+                st.download_button(
+                    label="📥 تحميل التقرير والسياسات الجاهزة (ملف نصي)",
+                    data=report,
+                    file_name="تقرير_امتثال_المتجر.md",
+                    mime="text/markdown"
+                )
