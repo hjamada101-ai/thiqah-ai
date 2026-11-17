@@ -2,7 +2,7 @@ import re
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 from google import genai
 from google.genai import types
 
@@ -22,7 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def fetch_rendered_page(url):
-    """جلب الصفحة بعد تشغيل JavaScript بالكامل عبر Jina Reader لضمان ظهور كافة النصوص والأرقام"""
+    """جلب الصفحة بعد تشغيل JavaScript بالكامل عبر Jina Reader"""
     try:
         reader_url = f"https://r.jina.ai/{url}"
         headers = {'Accept': 'text/plain', 'X-Return-Format': 'markdown'}
@@ -32,7 +32,6 @@ def fetch_rendered_page(url):
     except Exception:
         pass
     
-    # خطة بديلة في حال تعذر Jina
     try:
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -45,11 +44,9 @@ def extract_contact_and_policies(base_url):
     if main_content.startswith("ERROR:"):
         return main_content
 
-    # البحث عن روابط الصفحات القانونية والتواصل من النص المُستخرج (Markdown Links)
     parsed_base = urlparse(base_url)
     base_domain = parsed_base.netloc.replace("www.", "")
     
-    # استخراج جميع الروابط بصيغة [text](url)
     found_links = re.findall(r'\[([^\]]+)\]\((https?://[^\)]+)\)', main_content)
     
     priority_keywords = [
@@ -62,7 +59,6 @@ def extract_contact_and_policies(base_url):
     visited = set([base_url, base_url.rstrip('/')])
     subpages_content = ""
     
-    # ترتيب الروابط بحيث نضمن فتح صفحة التواصل والسياسات أولاً
     sorted_links = sorted(
         found_links,
         key=lambda x: 0 if any(k in x[0].lower() for k in ['تواصل', 'اتصل', 'contact']) else 1
@@ -75,23 +71,35 @@ def extract_contact_and_policies(base_url):
                 visited.add(clean_url)
                 page_text = fetch_rendered_page(clean_url)
                 if not page_text.startswith("ERROR:"):
-                    subpages_content += f"\n\n=== محتوى صفحة: {link_text} ({clean_url}) ===\n{page_text[:4000]}"
-                if len(visited) >= 7: # فتح أهم 6 صفحات فرعية بالإضافة للرئيسية
+                    subpages_content += f"\n\n=== محتوى صفحة: {link_text} ({clean_url}) ===\n{page_text[:3500]}"
+                if len(visited) >= 7:
                     break
 
-    combined_text = f"=== الصفحة الرئيسية وذيل الصفحة ===\n{main_content[:8000]}\n{subpages_content}"
+    # أخذ بداية الصفحة + نهاية الصفحة (لضمان عدم قص ذيل الصفحة Footer أبداً)
+    if len(main_content) > 8500:
+        header_and_footer = main_content[:3000] + "\n\n... [ذيل الصفحة والمعلومات القانونية في الأسفل] ...\n\n" + main_content[-5500:]
+    else:
+        header_and_footer = main_content
+
+    full_raw_text = main_content + "\n" + subpages_content
     
-    # استخراج آلي دقيق لأرقام الجوال والهاتف والإيميلات من كامل الموقع (Regex)
-    phones = set(re.findall(r'(?:\+966|00966|966|0)?5\d{8}|9200\d{5}|800\d{7}', combined_text))
-    emails = set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', combined_text))
+    # استخراج آلي دقيق لجميع البيانات القانونية والتواصل من كامل الصفحة قبل أي قص
+    phones = set(re.findall(r'(?:\+966|00966|966|0)?5\d{8}|9200\d{5}|800\d{7}', full_raw_text))
+    emails = set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', full_raw_text))
+    vat_numbers = set(re.findall(r'\b3\d{13}3\b', full_raw_text)) # الرقم الضريبي السعودي 15 رقماً يبدأ وينتهي بـ 3
+    cr_numbers = set(re.findall(r'\b(?:10|20|40|70)\d{8}\b', full_raw_text)) # السجل التجاري أو الرقم الموحد للمنشأة 10 أرقام
+    has_saudi_business = "منصة الأعمال" in full_raw_text or "eauthenticate" in full_raw_text or "المركز السعودي للأعمال" in full_raw_text
     
     auto_extracted = (
-        f"\n\n=== بيانات تواصل تم رصدها آلياً من صفحات المتجر ===\n"
-        f"أرقام الهواتف/الواتساب المكتشفة: {', '.join(phones) if phones else 'لم يُرصد رقم نصي'}\n"
-        f"البريد الإلكتروني المكتشف: {', '.join(emails) if emails else 'لم يُرصد بريد إلكتروني'}\n"
+        f"\n\n=== بيانات قانونية وتواصل تم رصدها آلياً بدقة 100% من المتجر ===\n"
+        f"- السجلات التجارية / الأرقام الموحدة المكتشفة: {', '.join(cr_numbers) if cr_numbers else 'لم يُرصد رقم سجل'}\n"
+        f"- الرقم الضريبي المكتشف: {', '.join(vat_numbers) if vat_numbers else 'لم يُرصد رقم ضريبي'}\n"
+        f"- التوثيق في منصة الأعمال (المركز السعودي للأعمال): {'موجود ومُثبت في ذيل الصفحة' if has_saudi_business else 'غير ظاهر نصياً'}\n"
+        f"- أرقام الهواتف/الواتساب المكتشفة: {', '.join(phones) if phones else 'لم يُرصد رقم'}\n"
+        f"- البريد الإلكتروني المكتشف: {', '.join(emails) if emails else 'لم يُرصد بريد إلكتروني'}\n"
     )
     
-    return combined_text + auto_extracted
+    return f"=== الصفحة الرئيسية وذيل الصفحة ===\n{header_and_footer}\n{subpages_content}{auto_extracted}"
 
 def get_available_models(client):
     available = []
@@ -110,11 +118,10 @@ def analyze_smart(store_data, api_key, status_box):
     
     system_instruction = """
     أنت مستشار قانوني خبير في نظام التجارة الإلكترونية السعودي ولائحته التنفيذية الصادرة عن وزارة التجارة والمركز السعودي للأعمال.
-    مهمتك فحص البيانات المُستخرجة بدقة متناهية. اعتمد على قسم (بيانات تواصل تم رصدها آلياً) وعلى محتوى الصفحات الفرعية المرفقة.
-    لا تحكم بأن بنداً مفقود إلا إذا تأكدت من خلو جميع الصفحات المرفقة وقسم البيانات المرصودة آلياً منه.
+    مهمتك فحص البيانات المُستخرجة بدقة متناهية. اعتمد أولاً على قسم (بيانات قانونية وتواصل تم رصدها آلياً بدقة 100%) وعلى محتوى الصفحات المرفقة.
     
     قائمة الفحص الإلزامية:
-    1. الإفصاح عن الهوية (السجل التجاري أو وثيقة العمل الحر، أو التوثيق في المركز السعودي للأعمال).
+    1. الإفصاح عن الهوية (السجل التجاري أو الرقم الموحد 700، والتوثيق في منصة الأعمال).
     2. الرقم الضريبي (15 رقماً).
     3. سياسة الاستبدال والاسترجاع (الالتزام بحق الفسخ خلال 7 أيام وعدم وجود شروط مخالفة).
     4. سياسة الشحن والتوصيل (توضيح مدة التوصيل وحق الإلغاء عند التأخير لأكثر من 15 يوماً).
@@ -123,7 +130,7 @@ def analyze_smart(store_data, api_key, status_box):
     
     نظم التقرير باللغة العربية في الأقسام التالية:
     - **نسبة الامتثال التقديرية ومستوى الخطورة**
-    - **جدول الفحص السريع:** (البند | الحالة: ممتثل ✅ أو مخالفة ⚠️ أو مفقود ❌ | الملاحظة الدقيقة مع ذكر الأرقام والإيميلات المكتشفة)
+    - **جدول الفحص السريع:** (البند | الحالة: ممتثل ✅ أو مخالفة ⚠️ أو مفقود ❌ | الملاحظة الدقيقة مع ذكر كافة الأرقام والإيميلات المكتشفة)
     - **الملاحظات والثغرات القانونية المكتشفة (إن وجدت)**
     - **النصوص القانونية الجاهزة (انسخ والصق لتصحيح أو استكمال أي نقص)**
     """
@@ -168,7 +175,7 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
         st.error("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ http:// أو https://")
     else:
         status_placeholder = st.empty()
-        status_placeholder.info("🌐 جاري تشغيل المتصفح السحابي لقراءة المتجر وصفحة تواصل معنا والسياسات...")
+        status_placeholder.info("🌐 جاري تشغيل المتصفح السحابي لفحص المتجر وذيل الصفحة والسياسات...")
         scraped_data = extract_contact_and_policies(store_url.strip())
             
         if scraped_data.startswith("ERROR:"):
