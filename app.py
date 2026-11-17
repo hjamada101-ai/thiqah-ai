@@ -6,103 +6,144 @@ from urllib.parse import urlparse
 from google import genai
 from google.genai import types
 
-# 1. إعدادات الصفحة (يجب أن تكون أول سطر)
+# --- 1. إعدادات الصفحة الأساسية ---
 st.set_page_config(page_title="ثقة AI | حماية المتاجر الإلكترونية", page_icon="🛡️", layout="centered")
 
-# 2. تصميم CSS احترافي (إخفاء قوائم Streamlit وتجميل الواجهة)
+# --- 2. التصميم الجمالي (UI/UX) CSS Injection ---
 st.markdown("""
 <style>
-    /* إخفاء القوائم العلوية والسفلية الخاصة بـ Streamlit */
+    @import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;600;700&display=swap');
+
+    /* إخفاء واجهة Streamlit الافتراضية */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* تنسيق عام */
+    /* تنسيق الخلفية والخط الأساسي */
     body, .stApp {
         direction: rtl;
         text-align: right;
-        font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
-        background-color: #f8f9fa;
+        font-family: 'Alexandria', sans-serif !important;
+        background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
     }
     
-    /* تنسيق العناوين */
-    h1, h2, h3, p, div { text-align: right; }
-    .main-title {
-        color: #1E3A8A;
-        font-size: 2.5rem;
-        font-weight: bold;
-        text-align: center !important;
-        margin-bottom: 0px;
+    /* توسيط المحتوى وإعطاء مساحة للتنفس */
+    .block-container {
+        padding-top: 2rem;
+        max-width: 900px;
     }
-    .sub-title {
-        color: #4B5563;
-        font-size: 1.2rem;
-        text-align: center !important;
-        margin-top: 10px;
-        margin-bottom: 30px;
-    }
-    
-    /* تنسيق زر الفحص */
-    .stButton>button {
-        background-color: #10B981 !important; /* أخضر ثقة */
-        color: white !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        padding: 10px 24px !important;
-        width: 100% !important;
-        border: none !important;
-        transition: 0.3s;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    .stButton>button:hover {
-        background-color: #059669 !important;
-        transform: translateY(-2px);
-    }
-    
-    /* تنسيق صندوق الإدخال */
+
+    /* حقل إدخال الرابط (عصري ودائري) */
     .stTextInput > div > div > input {
         text-align: left !important;
         direction: ltr !important;
-        border-radius: 8px;
-        border: 2px solid #E5E7EB;
-        padding: 12px;
-        font-size: 16px;
+        border-radius: 50px !important;
+        border: 2px solid #CBD5E1 !important;
+        padding: 16px 24px !important;
+        font-size: 16px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        transition: all 0.3s ease;
+        background: white !important;
     }
-    
-    /* تنسيق صندوق الميزات */
-    .feature-box {
-        text-align: center !important;
-        padding: 20px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    .stTextInput > div > div > input:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
     }
-    
-    /* زر الدفع المميز */
-    .pay-button {
+
+    /* زر الفحص الرئيسي */
+    .stButton>button {
+        background: linear-gradient(90deg, #10B981, #059669) !important;
+        color: white !important;
+        font-family: 'Alexandria', sans-serif !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        border-radius: 50px !important;
+        padding: 12px 24px !important;
+        width: 100% !important;
+        border: none !important;
+        box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton>button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 15px 25px -5px rgba(16, 185, 129, 0.5) !important;
+    }
+
+    /* كروت الميزات (التأثير الزجاجي) */
+    .modern-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 30px 20px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        height: 100%;
+    }
+    .modern-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    .modern-card-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+    }
+    .modern-card-title {
+        color: #1E293B;
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 8px;
+    }
+    .modern-card-text {
+        color: #64748B;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    /* زر الدفع الجذاب (SaaS Style) */
+    .premium-btn {
         display: block;
         text-align: center;
-        background: linear-gradient(90deg, #1E3A8A, #3B82F6);
+        background: linear-gradient(90deg, #1E3A8A 0%, #3B82F6 100%);
         color: white !important;
-        padding: 15px 20px;
-        font-size: 1.2rem;
-        font-weight: bold;
-        border-radius: 10px;
+        padding: 18px 30px;
+        font-family: 'Alexandria', sans-serif;
+        font-size: 1.3rem;
+        font-weight: 700;
+        border-radius: 16px;
         text-decoration: none;
-        margin-top: 20px;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-        animation: pulse 2s infinite;
+        margin-top: 30px;
+        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.02); }
-        100% { transform: scale(1); }
+    .premium-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(59, 130, 246, 0.5);
+    }
+    /* تأثير اللمعة للزر */
+    .premium-btn::after {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%;
+        width: 50%; height: 100%;
+        background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+        transform: skewX(-20deg);
+        animation: shine 3s infinite;
+    }
+    @keyframes shine {
+        0% { left: -100%; }
+        20% { left: 200%; }
+        100% { left: 200%; }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# دوال السحب والتحليل (نفس الدقة السابقة 100%)
+# --- 3. دوال الخلفية (البحث والتحليل الدقيق) - لم تتغير ---
 def fetch_rendered_page(url):
     try:
         reader_url = f"https://r.jina.ai/{url}"
@@ -161,13 +202,13 @@ def analyze_smart(store_data, api_key, status_box):
     أنت مستشار قانوني سعودي. افحص المتجر بناءً على نظام التجارة الإلكترونية.
     ركز على: السجل/التوثيق، الرقم الضريبي، سياسة الاسترجاع (7 أيام)، الشحن (15 يوماً)، الخصوصية، بيانات التواصل.
     اكتب التقرير ليقرأه صاحب المتجر مباشرة، واجعله يبدو احترافياً.
-    القسم الأخير سمه "الحلول والنصوص الجاهزة (باقة Premium)" واكتب فيه النصوص القانونية.
+    تجنب ذكر "بناءً على المعطيات"، ابدأ التقرير فوراً بعبارة ترحيبية احترافية مثل: "تقرير فحص الامتثال لمتجرك..."
     """
     prompt = f"افحص بيانات المتجر التالي وأصدر التقرير:\n\n{store_data}"
     
     for model_name in get_available_models(client):
         try:
-            status_box.info(f"⏳ جاري تدقيق السياسات عبر الذكاء الاصطناعي...")
+            status_box.info(f"⏳ جاري التدقيق القانوني الشامل بواسطة الذكاء الاصطناعي...")
             response = client.models.generate_content(
                 model=model_name, contents=prompt,
                 config=types.GenerateContentConfig(system_instruction=system_instruction, temperature=0.1)
@@ -176,62 +217,47 @@ def analyze_smart(store_data, api_key, status_box):
         except: continue
     return "API_ERROR: النظام مزدحم حالياً، يرجى المحاولة بعد دقيقة."
 
-# جلب المفتاح
+# جلب المفتاح السري
 try: SECRET_API_KEY = st.secrets["GEMINI_API_KEY"]
 except: SECRET_API_KEY = ""
 
 
-# --- واجهة المستخدم الاحترافية ---
+# --- 4. الهيكل البصري للمنصة (UI Structure) ---
 
-st.markdown('<p class="main-title">منصة ثِقَة AI 🛡️</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">هل متجرك الإلكتروني محمي من غرامات وزارة التجارة؟ افحص امتثالك في 30 ثانية.</p>', unsafe_allow_html=True)
+# قسم الترحيب (Hero Section)
+st.markdown("""
+<div style="text-align: center; padding: 2rem 0 3rem 0;">
+    <h1 style="font-weight: 800; font-size: 3.5rem; background: linear-gradient(90deg, #1E3A8A, #06B6D4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0;">
+        منصة ثِقَة AI 🛡️
+    </h1>
+    <p style="color: #64748B; font-size: 1.3rem; margin-top: 10px; font-weight: 400;">
+        الدرع القانوني لمتجرك الإلكتروني. افحص امتثالك لاشتراطات وزارة التجارة في ثوانٍ.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# مميزات المنصة (لزيادة الثقة)
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown('<div class="feature-box">🇸🇦<br><b>متوافق مع الأنظمة</b><br><small>وزارة التجارة والمركز السعودي للأعمال</small></div>', unsafe_allow_html=True)
-with col2:
-    st.markdown('<div class="feature-box">🤖<br><b>فحص دقيق جداً</b><br><small>بالذكاء الاصطناعي يقرأ كل سياسات متجرك</small></div>', unsafe_allow_html=True)
-with col3:
-    st.markdown('<div class="feature-box">⚡<br><b>حلول فورية</b><br><small>نصوص قانونية جاهزة للنسخ واللصق</small></div>', unsafe_allow_html=True)
+# كروت المميزات
+cols = st.columns(3)
+features = [
+    ("🇸🇦", "موثوقية سعودية", "تحديث فوري ليتوافق مع اشتراطات وزارة التجارة والمركز السعودي للأعمال."),
+    ("🤖", "ذكاء اصطناعي", "خوارزميات متطورة تقرأ سياساتك، أرقامك، وروابط التوثيق بدقة 100%."),
+    ("⚡", "حلول فورية", "نوفر لك نصوصاً قانونية جاهزة للنسخ لتصحيح وضع متجرك فوراً.")
+]
+for i, col in enumerate(cols):
+    col.markdown(f"""
+    <div class="modern-card">
+        <div class="modern-card-icon">{features[i][0]}</div>
+        <div class="modern-card-title">{features[i][1]}</div>
+        <div class="modern-card-text">{features[i][2]}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.write("---")
+st.write("<br><br>", unsafe_allow_html=True)
 
-st.markdown("### 🔍 أدخل رابط متجرك لفحص مجاني للثغرات:")
-store_url = st.text_input("", placeholder="مثال: https://alhulafa.com")
+# منطقة الإدخال والفحص
+st.markdown("<h3 style='color: #1E293B; font-weight: 700; text-align: right; margin-bottom: 15px;'>🔍 أدخل رابط متجرك للفحص الفوري:</h3>", unsafe_allow_html=True)
+
+store_url = st.text_input("", placeholder="مثال: https://alhulafa.com", label_visibility="collapsed")
 
 if st.button("🚀 ابدأ الفحص المجاني الآن"):
-    if not SECRET_API_KEY:
-        st.error("⚠️ عذراً، النظام في وضع الصيانة.")
-    elif not store_url or not store_url.startswith("http"):
-        st.warning("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ https://")
-    else:
-        status_placeholder = st.empty()
-        status_placeholder.info("🌐 جاري تحليل هيكل المتجر واستخراج السياسات القانونية...")
-        scraped_data = extract_contact_and_policies(store_url.strip())
-            
-        if scraped_data.startswith("ERROR:"):
-            status_placeholder.error("⚠️ تعذر الوصول للمتجر، تأكد من الرابط.")
-        else:
-            report = analyze_smart(scraped_data, SECRET_API_KEY, status_placeholder)
-            if report.startswith("API_ERROR:"):
-                status_placeholder.error(f"⚠️ {report}")
-            else:
-                status_placeholder.empty()
-                st.success("✅ اكتمل الفحص! إليك تقرير متجرك المبدئي:")
-                
-                # عرض النتيجة داخل حاوية أنيقة
-                with st.container(border=True):
-                    st.markdown(report)
-                
-                st.write("---")
-                st.markdown("### 💡 هل اكتشفت ثغرات في متجرك؟")
-                st.markdown("لا تخاطر بالغرامات! احصل الآن على **ملف التقرير الكامل بصيغة PDF + جميع النصوص القانونية المخصصة لمتجرك** جاهزة للنسخ واللصق، بالإضافة إلى دعم فني لتصحيح أخطاء متجرك.")
-                
-                # زر الدفع الوهمي (ستربطه لاحقاً بـ Paylink أو واتسابك)
-                st.markdown(
-                    f'<a href="https://wa.me/966500000000?text=أهلاً، أريد شراء باقة تصحيح متجري: {store_url}" target="_blank" class="pay-button">'
-                    '💳 احصل على الباقة المتكاملة بـ 99 ريال فقط'
-                    '</a>', 
-                    unsafe_allow_html=True
-                )
+    if not SECRET_API_
