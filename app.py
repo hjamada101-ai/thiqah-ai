@@ -1,5 +1,6 @@
 import re
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
@@ -14,12 +15,10 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
 
-    /* إخفاء واجهة Streamlit الافتراضية */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* تنسيق الخلفية والخط الأساسي */
     body, .stApp {
         direction: rtl;
         text-align: right;
@@ -27,13 +26,11 @@ st.markdown("""
         background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
     }
     
-    /* توسيط المحتوى وإعطاء مساحة للتنفس */
     .block-container {
         padding-top: 2rem;
         max-width: 900px;
     }
 
-    /* حقل إدخال الرابط (عصري ودائري) */
     .stTextInput > div > div > input {
         text-align: left !important;
         direction: ltr !important;
@@ -51,7 +48,6 @@ st.markdown("""
         box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
     }
 
-    /* زر الفحص الرئيسي */
     .stButton>button {
         background: linear-gradient(90deg, #10B981, #059669) !important;
         color: white !important;
@@ -70,7 +66,6 @@ st.markdown("""
         box-shadow: 0 15px 25px -5px rgba(16, 185, 129, 0.5) !important;
     }
 
-    /* كروت الميزات (التأثير الزجاجي) */
     .modern-card {
         background: rgba(255, 255, 255, 0.8);
         backdrop-filter: blur(12px);
@@ -106,56 +101,6 @@ st.markdown("""
         font-family: 'Tajawal', sans-serif !important;
     }
 
-    /* تنسيق التقرير النهائي (RTL وخط تجوال) */
-    .report-container {
-        background-color: white;
-        padding: 40px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        direction: rtl;
-        text-align: right;
-        font-family: 'Tajawal', sans-serif !important;
-    }
-    
-    .report-container h1, .report-container h2, .report-container h3 {
-        color: #1E3A8A;
-        font-weight: 700;
-        margin-top: 25px;
-        font-family: 'Tajawal', sans-serif !important;
-    }
-    
-    .report-container p, .report-container li {
-        color: #334155;
-        font-size: 1.05rem;
-        line-height: 1.8;
-        font-family: 'Tajawal', sans-serif !important;
-    }
-
-    /* تنسيق الجداول داخل التقرير */
-    .report-container table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 15px;
-        margin-bottom: 15px;
-        direction: rtl;
-        font-family: 'Tajawal', sans-serif !important;
-    }
-    .report-container th {
-        background-color: #f1f5f9;
-        color: #1e293b;
-        font-weight: 700;
-        padding: 12px;
-        border: 1px solid #e2e8f0;
-        text-align: right;
-    }
-    .report-container td {
-        padding: 12px;
-        border: 1px solid #e2e8f0;
-        color: #334155;
-        text-align: right;
-    }
-
-    /* زر الدفع الجذاب (SaaS Style) */
     .premium-btn {
         display: block;
         text-align: center;
@@ -221,7 +166,7 @@ def extract_contact_and_policies(base_url):
     emails = set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', full_raw_text))
     vat_numbers = set(re.findall(r'\b3\d{13}3\b', full_raw_text))
     cr_numbers = set(re.findall(r'\b(?:10|20|40|70)\d{8}\b', full_raw_text))
-    has_saudi_business = any(x in full_raw_text for x in ["منصة الأعمال", "eauthenticate", "المركز السعودي للأعمال"])
+    has_saudi_business = any(x in full_raw_text for x in ["منصة الأعمال", "eauthenticate", "ال সৌদি للأعمال"])
     
     auto_extracted = (f"\n\n=== بيانات مرصودة آلياً ===\nالسجلات: {', '.join(cr_numbers)}\nالضريبي: {', '.join(vat_numbers)}\nالتوثيق: {has_saudi_business}\nواتساب/هاتف: {', '.join(phones)}\nإيميل: {', '.join(emails)}")
     return f"=== الصفحة الرئيسية ===\n{header_and_footer}\n{subpages_content}{auto_extracted}"
@@ -239,15 +184,13 @@ def analyze_smart(store_data, api_key, status_box):
     أنت مستشار قانوني سعودي. افحص المتجر بناءً على نظام التجارة الإلكترونية.
     ركز على: السجل/التوثيق، الرقم الضريبي، سياسة الاسترجاع (7 أيام)، الشحن (15 يوماً)، الخصوصية، بيانات التواصل.
     اكتب التقرير ليقرأه صاحب المتجر مباشرة، واجعله يبدو احترافياً.
-    استخدم تنسيق HTML لإنشاء التقرير لضمان اتجاه الكتابة من اليمين لليسار (RTL).
-    ابدأ التقرير فوراً بـ:
-    <div dir="rtl">
-    <h1>تقرير فحص الامتثال</h1>
-    ... ثم أكمل باقي التقرير باستخدام وسوم HTML (h2, p, ul, table).
-    تأكد من إغلاق الوسم </div> في نهاية التقرير.
-    القسم الأخير سمه "الحلول والنصوص الجاهزة (باقة Premium)" واكتب فيه النصوص القانونية.
+    **هام جداً:** استخدم وسوم HTML نقية فقط (بدون أي تنسيقات Markdown مثل ### أو **).
+    ابدأ التقرير فوراً هكذا:
+    <h2>تقرير فحص الامتثال</h2>
+    <p>مقدمة قصيرة هنا...</p>
+    ثم استخدم الجداول (<table>) لعرض الفحص، والقوائم (<ul><li>) للتفاصيل.
     """
-    prompt = f"افحص بيانات المتجر التالي وأصدر التقرير بتنسيق HTML (RTL):\n\n{store_data}"
+    prompt = f"افحص بيانات المتجر التالي وأصدر التقرير بتنسيق HTML نقي:\n\n{store_data}"
     
     for model_name in get_available_models(client):
         try:
@@ -256,7 +199,10 @@ def analyze_smart(store_data, api_key, status_box):
                 model=model_name, contents=prompt,
                 config=types.GenerateContentConfig(system_instruction=system_instruction, temperature=0.1)
             )
-            if response.text: return response.text
+            if response.text:
+                 # Clean up Markdown code blocks if AI added them
+                 clean_html = response.text.replace("```html", "").replace("```", "").strip()
+                 return clean_html
         except: continue
     return "API_ERROR: النظام مزدحم حالياً، يرجى المحاولة بعد دقيقة."
 
@@ -266,7 +212,6 @@ except: SECRET_API_KEY = ""
 
 # --- 4. الهيكل البصري للمنصة (UI Structure) ---
 
-# قسم الترحيب (Hero Section)
 st.markdown("""
 <div style="text-align: center; padding: 2rem 0 3rem 0;">
     <h1 style="font-weight: 800; font-size: 3.5rem; background: linear-gradient(90deg, #1E3A8A, #06B6D4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0; font-family: 'Tajawal', sans-serif;">
@@ -278,7 +223,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# كروت المميزات
 cols = st.columns(3)
 features = [
     ("🇸🇦", "موثوقية سعودية", "تحديث فوري ليتوافق مع اشتراطات وزارة التجارة والمركز السعودي للأعمال."),
@@ -296,7 +240,6 @@ for i, col in enumerate(cols):
 
 st.write("<br><br>", unsafe_allow_html=True)
 
-# منطقة الإدخال والفحص
 st.markdown("<h3 style='color: #1E293B; font-weight: 700; text-align: right; margin-bottom: 15px; font-family: \"Tajawal\", sans-serif;'>🔍 أدخل رابط متجرك للفحص الفوري:</h3>", unsafe_allow_html=True)
 
 store_url = st.text_input("", placeholder="مثال: https://alhulafa.com", label_visibility="collapsed")
@@ -321,12 +264,23 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                 status_placeholder.empty()
                 st.success("✅ اكتمل الفحص! إليك التقرير المبدئي:")
                 
-                # عرض النتيجة بداخل حاوية ذات تصميم ناعم وتطبيق CSS الخاص بالتقرير
-                st.markdown(f'<div class="report-container">{report}</div>', unsafe_allow_html=True)
+                # إعداد وعرض HTML النقي داخل الواجهة مع تنسيقات كاملة
+                full_html_content = f"""
+                <div dir="rtl" style="font-family: 'Tajawal', sans-serif; text-align: right; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); color: #334155; line-height: 1.8;">
+                    <style>
+                        h1, h2, h3 {{ color: #1E3A8A; font-family: 'Tajawal', sans-serif; }}
+                        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                        th, td {{ border: 1px solid #e2e8f0; padding: 12px; text-align: right; }}
+                        th {{ background-color: #f1f5f9; color: #1e293b; font-weight: 700; }}
+                    </style>
+                    {report}
+                </div>
+                """
+                components.html(full_html_content, height=800, scrolling=True)
                 
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # توفير زر لتحميل التقرير كملف HTML لكي يفتحه كصفحة ويب منسقة ويطبعها كـ PDF
+                # HTML القابل للتحميل كـ PDF (جاهز للطباعة)
                 html_export = f"""
                 <!DOCTYPE html>
                 <html lang="ar" dir="rtl">
@@ -347,6 +301,10 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                     <div class="container">
                         {report}
                     </div>
+                    <script>
+                        // خيار إضافي: يفتح نافذة الطباعة تلقائياً عند فتح الملف
+                        window.onload = function() {{ window.print(); }}
+                    </script>
                 </body>
                 </html>
                 """
@@ -354,7 +312,7 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                 col1, col2 = st.columns(2)
                 with col1:
                     st.download_button(
-                        label="📄 تحميل التقرير (HTML لطباعته كـ PDF)",
+                        label="📄 تحميل التقرير (جاهز للطباعة كـ PDF)",
                         data=html_export,
                         file_name="تقرير_امتثال_المتجر.html",
                         mime="text/html",
@@ -362,14 +320,13 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                     )
                 with col2:
                     st.download_button(
-                        label="📝 تحميل التقرير (نصي)",
+                        label="📝 تحميل كود التقرير",
                         data=report,
-                        file_name="تقرير_امتثال_المتجر.md",
-                        mime="text/markdown",
+                        file_name="تقرير_امتثال_المتجر.txt",
+                        mime="text/plain",
                         use_container_width=True
                     )
 
-                # صندوق دعوة اتخاذ الإجراء (CTA)
                 st.markdown("""
                 <div style="background: rgba(59, 130, 246, 0.05); border: 2px dashed #3B82F6; border-radius: 16px; padding: 30px; text-align: center; margin-top: 20px;">
                     <h2 style="color: #1E3A8A; font-weight: 700; font-size: 1.8rem; margin-bottom: 10px; font-family: 'Tajawal', sans-serif;">💡 هل اكتشفت ثغرات في متجرك؟</h2>
@@ -380,7 +337,6 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # زر الدفع الفاخر مع تأثير اللمعة
                 st.markdown(
                     f'<a href="https://wa.me/966500000000?text=أهلاً، أريد تأمين متجري وتصحيح الأخطاء القانونية. هذا رابط متجري: {store_url}" target="_blank" class="premium-btn">'
                     '🔒 تأمين المتجر والحصول على الحلول (99 ريال)'
