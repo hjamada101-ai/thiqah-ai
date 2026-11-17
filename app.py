@@ -143,7 +143,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. دوال الخلفية (البحث والتحليل الدقيق) - لم تتغير ---
+# --- 3. دوال الخلفية (البحث والتحليل الدقيق) ---
 def fetch_rendered_page(url):
     try:
         reader_url = f"https://r.jina.ai/{url}"
@@ -260,4 +260,46 @@ st.markdown("<h3 style='color: #1E293B; font-weight: 700; text-align: right; mar
 store_url = st.text_input("", placeholder="مثال: https://alhulafa.com", label_visibility="collapsed")
 
 if st.button("🚀 ابدأ الفحص المجاني الآن"):
-    if not SECRET_API_
+    if not SECRET_API_KEY:
+        st.error("⚠️ عذراً، النظام في وضع الصيانة.")
+    elif not store_url or not store_url.startswith("http"):
+        st.warning("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ https://")
+    else:
+        status_placeholder = st.empty()
+        status_placeholder.info("🌐 جاري تحليل هيكل المتجر واستخراج السياسات القانونية...")
+        scraped_data = extract_contact_and_policies(store_url.strip())
+            
+        if scraped_data.startswith("ERROR:"):
+            status_placeholder.error("⚠️ تعذر الوصول للمتجر، تأكد من صحة الرابط.")
+        else:
+            report = analyze_smart(scraped_data, SECRET_API_KEY, status_placeholder)
+            if report.startswith("API_ERROR:"):
+                status_placeholder.error(f"⚠️ {report}")
+            else:
+                status_placeholder.empty()
+                st.success("✅ اكتمل الفحص! إليك التقرير المبدئي:")
+                
+                # عرض النتيجة بداخل حاوية ذات تصميم ناعم
+                with st.container(border=True):
+                    st.markdown(report)
+                
+                st.write("<br>", unsafe_allow_html=True)
+                
+                # صندوق دعوة اتخاذ الإجراء (CTA)
+                st.markdown("""
+                <div style="background: rgba(59, 130, 246, 0.05); border: 2px dashed #3B82F6; border-radius: 16px; padding: 30px; text-align: center; margin-top: 20px;">
+                    <h2 style="color: #1E3A8A; font-weight: 700; font-size: 1.8rem; margin-bottom: 10px;">💡 هل اكتشفت ثغرات في متجرك؟</h2>
+                    <p style="color: #475569; font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px;">
+                        الغرامات المالية تبدأ من 10,000 ريال للإخلال باشتراطات وزارة التجارة.<br>
+                        لا تخاطر! احصل الآن على <b>تقرير قانوني مفصل + كافة النصوص الجاهزة</b> للنسخ واللصق لتأمين متجرك بالكامل.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # زر الدفع الفاخر مع تأثير اللمعة
+                st.markdown(
+                    f'<a href="https://wa.me/966500000000?text=أهلاً، أريد تأمين متجري وتصحيح الأخطاء القانونية. هذا رابط متجري: {store_url}" target="_blank" class="premium-btn">'
+                    '🔒 تأمين المتجر والحصول على الحلول (99 ريال)'
+                    '</a>', 
+                    unsafe_allow_html=True
+                )
