@@ -2,7 +2,7 @@ import time
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from google import genai
 from google.genai import types
 
@@ -30,35 +30,55 @@ st.markdown("""
 def scrape_store_content(base_url):
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
-        response = requests.get(base_url, headers=headers, timeout=12)
+        response = requests.get(base_url, headers=headers, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        main_text = soup.get_text(separator=' ', strip=True)[:4500]
+        full_text = soup.get_text(separator=' ', strip=True)
+        # أخذ بداية الصفحة + نهاية الصفحة (لضمان التقاط ذيل الصفحة Footer بالكامل)
+        if len(full_text) > 7000:
+            main_text = full_text[:2500] + "\n\n... [ذيل الصفحة والمعلومات القانونية] ...\n\n" + full_text[-4500:]
+        else:
+            main_text = full_text
+
+        # استخراج الروابط المهمة في ذيل الصفحة (مثل رابط المركز السعودي للأعمال، واتساب، إيميل، صفحات السياسات)
+        parsed_base = urlparse(base_url)
+        base_domain = parsed_base.netloc.replace("www.", "")
         
-        policy_keywords = ['استرجاع', 'استبدال', 'خصوصية', 'شروط', 'سياسة', 'شكاوى', 'return', 'refund', 'privacy', 'terms']
+        policy_keywords = [
+            'استرجاع', 'استبدال', 'خصوصية', 'شروط', 'سياسة', 'شكاوى', 'تواصل', 'من نحن', 'شحن', 'توصيل',
+            'return', 'refund', 'privacy', 'terms', 'policy', 'shipping', 'contact', 'about'
+        ]
+        
+        important_links = []
         policy_texts = ""
-        visited_urls = set()
+        visited_urls = set([base_url, base_url.rstrip('/')])
         
         for link in soup.find_all('a', href=True):
-            href = link['href']
-            link_text = link.get_text(strip=True).lower()
+            href = link['href'].strip()
+            link_text = link.get_text(strip=True)
             full_url = urljoin(base_url, href)
             
-            if any(kw in link_text or kw in href.lower() for kw in policy_keywords) and full_url not in visited_urls:
-                if base_url in full_url:
+            # التقاط روابط التوثيق الخارجية (المركز السعودي للأعمال / معروف) وروابط التواصل
+            if any(ext in href.lower() for ext in ['eauthenticate', 'saudibusiness', 'maroof', 'mailto:', 'tel:', 'wa.me', 'whatsapp']):
+                important_links.append(f"رابط توثيق/تواصل ({link_text}): {href}")
+                
+            # التقاط صفحات السياسات الداخلية
+            if any(kw in link_text.lower() or kw in href.lower() for kw in policy_keywords) and full_url not in visited_urls:
+                if base_domain in urlparse(full_url).netloc and full_url.startswith("http"):
                     visited_urls.add(full_url)
                     try:
-                        sub_res = requests.get(full_url, headers=headers, timeout=8)
+                        sub_res = requests.get(full_url, headers=headers, timeout=10)
                         sub_soup = BeautifulSoup(sub_res.text, 'html.parser')
-                        sub_text = sub_soup.get_text(separator=' ', strip=True)[:2500]
-                        policy_texts += f"\n--- محتوى صفحة ({link_text}) ---\n{sub_text}\n"
+                        sub_text = sub_soup.get_text(separator=' ', strip=True)[:3500]
+                        policy_texts += f"\n--- محتوى صفحة ({link_text or full_url}) ---\n{sub_text}\n"
                     except:
                         continue
-                    if len(visited_urls) >= 3:
+                    if len(visited_urls) >= 6:
                         break
                         
-        return f"بيانات الصفحة الرئيسية والذيل (Footer):\n{main_text}\n\n{policy_texts}"
+        links_summary = "\n".join(set(important_links))
+        return f"بيانات الصفحة الرئيسية وذيل الصفحة (Footer):\n{main_text}\n\nالروابط الخارجية والتواصل المستخرجة:\n{links_summary}\n\n{policy_texts}"
     except Exception as e:
         return f"ERROR: {str(e)}"
 
@@ -67,13 +87,11 @@ def get_available_models(client):
     try:
         for m in client.models.list():
             name = m.name.replace("models/", "")
-            # اختيار نماذج النصوص الحديثة فقط واستبعاد نماذج الصور والصوت
             if "gemini" in name and not any(x in name for x in ["image", "vision", "embedding", "aqa", "tts", "audio", "robotics"]):
                 available.append(name)
     except Exception:
         pass
     
-    # ترتيب النماذج بحيث يجرب الأخف والأقل ازدحاماً أولاً (lite ثم flash ثم pro)
     def priority(model_name):
         if "lite" in model_name:
             return 1
@@ -90,37 +108,38 @@ def analyze_smart(store_data, api_key, status_box):
     
     system_instruction = """
     أنت مستشار قانوني خبير في نظام التجارة الإلكترونية السعودي ولائحته التنفيذية الصادرة عن وزارة التجارة والمركز السعودي للأعمال.
-    مهمتك فحص النصوص المستخرجة من متجر إلكتروني سعودي وتقييم مدى امتثاله للاشتراطات النظامية باختصار ووضوح واحترافية.
+    مهمتك فحص النصوص والروابط المستخرجة بدقة متناهية وتقييم مدى امتثال المتجر للاشتراطات النظامية.
+    تحقق بعناية من ذيل الصفحة والروابط المستخرجة والصفحات الفرعية قبل الحكم بأن أي بند مفقود.
     
     قائمة الفحص الإلزامية:
-    1. الإفصاح عن الهوية (السجل التجاري أو وثيقة العمل الحر، ورقم التوثيق في منصة الأعمال).
-    2. الرقم الضريبي (إن وجد).
-    3. سياسة الاستبدال والاسترجاع (حق الفسخ خلال 7 أيام وعدم وجود عبارات مخالفة).
-    4. سياسة الشحن والتوصيل (مدة التوصيل وحق الإلغاء عند التأخير لأكثر من 15 يوماً).
-    5. سياسة الخصوصية وحماية البيانات.
-    6. آلية استقبال الشكاوى وبيانات التواصل.
+    1. الإفصاح عن الهوية (السجل التجاري أو وثيقة العمل الحر، أو رابط/رقم التوثيق في المركز السعودي للأعمال eauthenticate).
+    2. الرقم الضريبي (15 رقماً).
+    3. سياسة الاستبدال والاسترجاع (هل توجد سياسة؟ وهل تلتزم بحق المستهلك في الفسخ خلال 7 أيام؟).
+    4. سياسة الشحن والتوصيل (هل توضح مدة التوصيل وحق الإلغاء عند التأخير لأكثر من 15 يوماً؟).
+    5. سياسة الخصوصية وحماية البيانات الشخصية.
+    6. آلية استقبال الشكاوى وبيانات التواصل (هاتف، واتساب، بريد إلكتروني، مدة معالجة الشكوى).
     
     نظم التقرير باللغة العربية في الأقسام التالية:
     - **نسبة الامتثال التقديرية ومستوى الخطورة**
-    - **جدول الفحص السريع:** (البند | الحالة: ممتثل ✅ أو مخالفة ⚠️ أو مفقود ❌ | الملاحظة)
-    - **أهم المخالفات التي تعرض المتجر للغرامة**
-    - **النصوص القانونية الجاهزة (انسخ والصق لتصحيح المتجر فوراً)**
+    - **جدول الفحص السريع:** (البند | الحالة: ممتثل ✅ أو مخالفة ⚠️ أو مفقود ❌ | الملاحظة الدقيقة مع ذكر الأرقام أو الروابط المكتشفة)
+    - **الملاحظات والثغرات القانونية المكتشفة (إن وجدت)**
+    - **النصوص القانونية الجاهزة (انسخ والصق لتصحيح أو استكمال أي نقص)**
     """
     
-    prompt = f"افحص بيانات المتجر التالي وأصدر التقرير القانوني:\n\n{store_data}"
+    prompt = f"افحص بيانات المتجر التالي بدقة وأصدر التقرير القانوني:\n\n{store_data}"
     
     models_list = get_available_models(client)
     last_error = ""
     
     for model_name in models_list:
         try:
-            status_box.info(f"⏳ جاري التحليل القانوني باستخدام المحرك المتاح: `{model_name}`...")
+            status_box.info(f"⏳ جاري الفحص القانوني الدقيق باستخدام المحرك: `{model_name}`...")
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    temperature=0.2,
+                    temperature=0.1,
                 )
             )
             if response.text:
@@ -129,7 +148,7 @@ def analyze_smart(store_data, api_key, status_box):
             last_error = str(e)
             continue
             
-    return f"API_ERROR: جميع المحركات المتاحة في حسابك مزدحمة حالياً ({models_list}). آخر خطأ: {last_error}"
+    return f"API_ERROR: جميع المحركات المتاحة مزدحمة حالياً. آخر خطأ: {last_error}"
 
 st.title("🛡️ منصة ثقة AI - فاحص امتثال المتاجر الإلكترونية")
 st.markdown("##### افحص متجرك الإلكتروني وتأكد من مطابقته لاشتراطات وزارة التجارة السعودية والمركز السعودي للأعمال في ثوانٍ.")
@@ -139,7 +158,7 @@ with st.sidebar:
     api_key = st.text_input("أدخل مفتاح Gemini API:", type="password")
     st.info("💡 في النسخة التجارية سنخفي هذا الحقل ونحفظ المفتاح سرياً في السيرفر.")
 
-store_url = st.text_input("أدخل رابط المتجر الإلكتروني (مثال: https://blacksipcoffee.com):", placeholder="https://...")
+store_url = st.text_input("أدخل رابط المتجر الإلكتروني (مثال: https://deemahstore.sa/ar):", placeholder="https://...")
 
 if st.button("🔍 ابدأ الفحص القانوني الشامل", type="primary"):
     if not api_key:
@@ -148,7 +167,7 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
         st.error("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ http:// أو https://")
     else:
         status_placeholder = st.empty()
-        status_placeholder.info("🌐 جاري قراءة صفحات المتجر وفحص التذييل (Footer)...")
+        status_placeholder.info("🌐 جاري سحب ذيل الصفحة (Footer) وجميع صفحات السياسات القانونية...")
         scraped_data = scrape_store_content(store_url.strip())
             
         if scraped_data.startswith("ERROR:"):
@@ -159,7 +178,7 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
             if report.startswith("API_ERROR:"):
                 status_placeholder.error(f"⚠️ {report}")
             else:
-                status_placeholder.success("✅ اكتمل الفحص القانوني بنجاح!")
+                status_placeholder.success("✅ اكتمل الفحص القانوني الدقيق بنجاح!")
                 st.markdown("---")
                 st.markdown(report)
                 
