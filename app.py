@@ -56,7 +56,8 @@ def scrape_store_content(base_url):
         return f"ERROR: {str(e)}"
 
 def analyze_compliance(store_data, api_key):
-    client = genai.Client(api_key=api_key)
+    clean_key = api_key.strip()
+    client = genai.Client(api_key=clean_key)
     
     system_instruction = """
     أنت مستشار قانوني خبير في نظام التجارة الإلكترونية السعودي ولائحته التنفيذية الصادرة عن وزارة التجارة والمركز السعودي للأعمال.
@@ -79,15 +80,18 @@ def analyze_compliance(store_data, api_key):
     
     prompt = f"قم بفحص بيانات المتجر الإلكتروني التالي وأصدر التقرير القانوني الكامل:\n\n{store_data}"
     
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.2,
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.2,
+            )
         )
-    )
-    return response.text
+        return response.text
+    except Exception as e:
+        return f"API_ERROR: {str(e)}"
 
 st.title("🛡️ منصة ثقة AI - فاحص امتثال المتاجر الإلكترونية")
 st.subheader("افحص متجرك الإلكتروني وتأكد من مطابقته لاشتراطات وزارة التجارة السعودية والمركز السعودي للأعمال في ثوانٍ.")
@@ -106,19 +110,24 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
         st.error("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ http:// أو https://")
     else:
         with st.spinner("جاري قراءة صفحات المتجر، فحص التذييل (Footer)، وتحليل السياسات القانونية..."):
-            scraped_data = scrape_store_content(store_url)
+            scraped_data = scrape_store_content(store_url.strip())
             
             if scraped_data.startswith("ERROR:"):
-                st.error(f"تعذر الوصول إلى المتجر. تأكد من صحة الرابط أو أن المتجر لا يحظر الفحص الآلي. التفاصيل: {scraped_data}")
+                st.error(f"تعذر الوصول إلى المتجر. التفاصيل: {scraped_data}")
             else:
                 st.success("✅ تم سحب بيانات المتجر بنجاح! جاري التحليل القانوني...")
                 report = analyze_compliance(scraped_data, api_key)
-                st.markdown("---")
-                st.markdown(report)
                 
-                st.download_button(
-                    label="📥 تحميل التقرير والسياسات الجاهزة (ملف نصي)",
-                    data=report,
-                    file_name="تقرير_امتثال_المتجر.md",
-                    mime="text/markdown"
-                )
+                if report.startswith("API_ERROR:"):
+                    st.error(f"⚠️ حدث خطأ من مفتاح الذكاء الاصطناعي: {report}")
+                    st.warning("تأكد من نسخ المفتاح بالكامل من Google AI Studio بدون نقص، أو أنشئ مفتاحاً جديداً.")
+                else:
+                    st.markdown("---")
+                    st.markdown(report)
+                    
+                    st.download_button(
+                        label="📥 تحميل التقرير والسياسات الجاهزة (ملف نصي)",
+                        data=report,
+                        file_name="تقرير_امتثال_المتجر.md",
+                        mime="text/markdown"
+                    )
