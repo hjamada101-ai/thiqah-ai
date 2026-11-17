@@ -75,7 +75,6 @@ def extract_contact_and_policies(base_url):
                 if len(visited) >= 7:
                     break
 
-    # أخذ بداية الصفحة + نهاية الصفحة (لضمان عدم قص ذيل الصفحة Footer أبداً)
     if len(main_content) > 8500:
         header_and_footer = main_content[:3000] + "\n\n... [ذيل الصفحة والمعلومات القانونية في الأسفل] ...\n\n" + main_content[-5500:]
     else:
@@ -83,11 +82,10 @@ def extract_contact_and_policies(base_url):
 
     full_raw_text = main_content + "\n" + subpages_content
     
-    # استخراج آلي دقيق لجميع البيانات القانونية والتواصل من كامل الصفحة قبل أي قص
     phones = set(re.findall(r'(?:\+966|00966|966|0)?5\d{8}|9200\d{5}|800\d{7}', full_raw_text))
     emails = set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', full_raw_text))
-    vat_numbers = set(re.findall(r'\b3\d{13}3\b', full_raw_text)) # الرقم الضريبي السعودي 15 رقماً يبدأ وينتهي بـ 3
-    cr_numbers = set(re.findall(r'\b(?:10|20|40|70)\d{8}\b', full_raw_text)) # السجل التجاري أو الرقم الموحد للمنشأة 10 أرقام
+    vat_numbers = set(re.findall(r'\b3\d{13}3\b', full_raw_text))
+    cr_numbers = set(re.findall(r'\b(?:10|20|40|70)\d{8}\b', full_raw_text))
     has_saudi_business = "منصة الأعمال" in full_raw_text or "eauthenticate" in full_raw_text or "المركز السعودي للأعمال" in full_raw_text
     
     auto_extracted = (
@@ -141,7 +139,7 @@ def analyze_smart(store_data, api_key, status_box):
     
     for model_name in models_list:
         try:
-            status_box.info(f"⏳ جاري التحليل القانوني الدقيق باستخدام المحرك: `{model_name}`...")
+            status_box.info(f"⏳ جاري التحليل القانوني الدقيق...")
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
@@ -156,32 +154,33 @@ def analyze_smart(store_data, api_key, status_box):
             last_error = str(e)
             continue
             
-    return f"API_ERROR: جميع المحركات مزدحمة حالياً. آخر خطأ: {last_error}"
+    return f"API_ERROR: النظام مزدحم حالياً، يرجى المحاولة بعد دقيقة. ({last_error})"
+
+# جلب المفتاح السري من خزنة Streamlit تلقائياً
+try:
+    SECRET_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    SECRET_API_KEY = ""
 
 st.title("🛡️ منصة ثقة AI - فاحص امتثال المتاجر الإلكترونية")
 st.markdown("##### افحص متجرك الإلكتروني وتأكد من مطابقته لاشتراطات وزارة التجارة السعودية والمركز السعودي للأعمال في ثوانٍ.")
 
-with st.sidebar:
-    st.header("⚙️ الإعدادات")
-    api_key = st.text_input("أدخل مفتاح Gemini API:", type="password")
-    st.info("💡 في النسخة التجارية سنخفي هذا الحقل ونحفظ المفتاح سرياً في السيرفر.")
-
-store_url = st.text_input("أدخل رابط المتجر الإلكتروني (مثال: https://alhulafa.com):", placeholder="https://...")
+store_url = st.text_input("أدخل رابط المتجر الإلكتروني (مثال: https://example.salla.sa):", placeholder="https://...")
 
 if st.button("🔍 ابدأ الفحص القانوني الشامل", type="primary"):
-    if not api_key:
-        st.error("⚠️ يرجى إدخال مفتاح Gemini API في القائمة الجانبية أولاً.")
+    if not SECRET_API_KEY:
+        st.error("⚠️ عذراً، النظام في وضع الصيانة حالياً (لم يتم ربط مفتاح التشغيل في إعدادات الخادم).")
     elif not store_url or not store_url.startswith("http"):
         st.error("⚠️ يرجى إدخال رابط متجر صحيح يبدأ بـ http:// أو https://")
     else:
         status_placeholder = st.empty()
-        status_placeholder.info("🌐 جاري تشغيل المتصفح السحابي لفحص المتجر وذيل الصفحة والسياسات...")
+        status_placeholder.info("🌐 جاري فحص المتجر وقراءة السياسات وبيانات التوثيق...")
         scraped_data = extract_contact_and_policies(store_url.strip())
             
         if scraped_data.startswith("ERROR:"):
-            status_placeholder.error(f"تعذر الوصول إلى المتجر. التفاصيل: {scraped_data}")
+            status_placeholder.error(f"تعذر الوصول إلى المتجر. تأكد من صحة الرابط. التفاصيل: {scraped_data}")
         else:
-            report = analyze_smart(scraped_data, api_key, status_placeholder)
+            report = analyze_smart(scraped_data, SECRET_API_KEY, status_placeholder)
             
             if report.startswith("API_ERROR:"):
                 status_placeholder.error(f"⚠️ {report}")
