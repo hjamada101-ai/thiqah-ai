@@ -166,7 +166,7 @@ def extract_contact_and_policies(base_url):
     emails = set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', full_raw_text))
     vat_numbers = set(re.findall(r'\b3\d{13}3\b', full_raw_text))
     cr_numbers = set(re.findall(r'\b(?:10|20|40|70)\d{8}\b', full_raw_text))
-    has_saudi_business = any(x in full_raw_text for x in ["منصة الأعمال", "eauthenticate", "ال সৌদি للأعمال"])
+    has_saudi_business = any(x in full_raw_text for x in ["منصة الأعمال", "eauthenticate", "المركز السعودي للأعمال"])
     
     auto_extracted = (f"\n\n=== بيانات مرصودة آلياً ===\nالسجلات: {', '.join(cr_numbers)}\nالضريبي: {', '.join(vat_numbers)}\nالتوثيق: {has_saudi_business}\nواتساب/هاتف: {', '.join(phones)}\nإيميل: {', '.join(emails)}")
     return f"=== الصفحة الرئيسية ===\n{header_and_footer}\n{subpages_content}{auto_extracted}"
@@ -200,7 +200,6 @@ def analyze_smart(store_data, api_key, status_box):
                 config=types.GenerateContentConfig(system_instruction=system_instruction, temperature=0.1)
             )
             if response.text:
-                 # Clean up Markdown code blocks if AI added them
                  clean_html = response.text.replace("```html", "").replace("```", "").strip()
                  return clean_html
         except: continue
@@ -264,19 +263,30 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                 status_placeholder.empty()
                 st.success("✅ اكتمل الفحص! إليك التقرير المبدئي:")
                 
-                # إعداد وعرض HTML النقي داخل الواجهة مع تنسيقات كاملة
+                # إضافة استدعاء خط Tajawal داخل إطار التقرير المعروض بالواجهة
                 full_html_content = f"""
-                <div dir="rtl" style="font-family: 'Tajawal', sans-serif; text-align: right; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); color: #334155; line-height: 1.8;">
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
                     <style>
+                        body {{ font-family: 'Tajawal', sans-serif; background-color: white; padding: 20px; color: #334155; line-height: 1.8; margin: 0; }}
                         h1, h2, h3 {{ color: #1E3A8A; font-family: 'Tajawal', sans-serif; }}
-                        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; font-family: 'Tajawal', sans-serif; }}
                         th, td {{ border: 1px solid #e2e8f0; padding: 12px; text-align: right; }}
                         th {{ background-color: #f1f5f9; color: #1e293b; font-weight: 700; }}
                     </style>
+                </head>
+                <body>
                     {report}
-                </div>
+                </body>
+                </html>
                 """
-                components.html(full_html_content, height=800, scrolling=True)
+                
+                # عرض التقرير داخل صندوق أنيق بحدود
+                with st.container(border=True):
+                    components.html(full_html_content, height=800, scrolling=True)
                 
                 st.write("<br>", unsafe_allow_html=True)
                 
@@ -302,7 +312,6 @@ if st.button("🚀 ابدأ الفحص المجاني الآن"):
                         {report}
                     </div>
                     <script>
-                        // خيار إضافي: يفتح نافذة الطباعة تلقائياً عند فتح الملف
                         window.onload = function() {{ window.print(); }}
                     </script>
                 </body>
