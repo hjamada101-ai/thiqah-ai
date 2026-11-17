@@ -62,7 +62,29 @@ def scrape_store_content(base_url):
     except Exception as e:
         return f"ERROR: {str(e)}"
 
-def analyze_with_retry(store_data, api_key, status_box):
+def get_available_models(client):
+    available = []
+    try:
+        for m in client.models.list():
+            name = m.name.replace("models/", "")
+            # اختيار نماذج النصوص الحديثة فقط واستبعاد نماذج الصور والصوت
+            if "gemini" in name and not any(x in name for x in ["image", "vision", "embedding", "aqa", "tts", "audio", "robotics"]):
+                available.append(name)
+    except Exception:
+        pass
+    
+    # ترتيب النماذج بحيث يجرب الأخف والأقل ازدحاماً أولاً (lite ثم flash ثم pro)
+    def priority(model_name):
+        if "lite" in model_name:
+            return 1
+        if "flash" in model_name:
+            return 2
+        return 3
+        
+    available.sort(key=priority)
+    return available if available else ["gemini-3.8-flash"]
+
+def analyze_smart(store_data, api_key, status_box):
     clean_key = api_key.strip()
     client = genai.Client(api_key=clean_key)
     
@@ -87,29 +109,27 @@ def analyze_with_retry(store_data, api_key, status_box):
     
     prompt = f"افحص بيانات المتجر التالي وأصدر التقرير القانوني:\n\n{store_data}"
     
-    max_retries = 4
-    for attempt in range(1, max_retries + 1):
+    models_list = get_available_models(client)
+    last_error = ""
+    
+    for model_name in models_list:
         try:
-            status_box.info(f"⏳ جاري التحليل القانوني عبر الذكاء الاصطناعي (المحاولة {attempt} من {max_retries})...")
+            status_box.info(f"⏳ جاري التحليل القانوني باستخدام المحرك المتاح: `{model_name}`...")
             response = client.models.generate_content(
-                model="gemini-3.8-flash",
+                model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     temperature=0.2,
                 )
             )
-            return response.text
+            if response.text:
+                return response.text
         except Exception as e:
-            err_msg = str(e)
-            if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg:
-                if attempt < max_retries:
-                    status_box.warning(f"السيرفر مزدحم حالياً، جاري إعادة المحاولة تلقائياً خلال 4 ثوانٍ... ({attempt}/{max_retries})")
-                    time.sleep(4)
-                    continue
-            return f"API_ERROR: {err_msg}"
+            last_error = str(e)
+            continue
             
-    return "API_ERROR: السيرفر مزدحم حالياً بعد عدة محاولات، يرجى المحاولة بعد دقيقة."
+    return f"API_ERROR: جميع المحركات المتاحة في حسابك مزدحمة حالياً ({models_list}). آخر خطأ: {last_error}"
 
 st.title("🛡️ منصة ثقة AI - فاحص امتثال المتاجر الإلكترونية")
 st.markdown("##### افحص متجرك الإلكتروني وتأكد من مطابقته لاشتراطات وزارة التجارة السعودية والمركز السعودي للأعمال في ثوانٍ.")
@@ -134,7 +154,7 @@ if st.button("🔍 ابدأ الفحص القانوني الشامل", type="pri
         if scraped_data.startswith("ERROR:"):
             status_placeholder.error(f"تعذر الوصول إلى المتجر. التفاصيل: {scraped_data}")
         else:
-            report = analyze_with_retry(scraped_data, api_key, status_placeholder)
+            report = analyze_smart(scraped_data, api_key, status_placeholder)
             
             if report.startswith("API_ERROR:"):
                 status_placeholder.error(f"⚠️ {report}")
